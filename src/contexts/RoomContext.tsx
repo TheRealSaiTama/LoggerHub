@@ -23,6 +23,8 @@ import { useUser } from "./UserContext";
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+const LOGIN_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 export type Activity = {
   id: string;
   userId: string;
@@ -195,18 +197,28 @@ export const RoomProvider: React.FC<{ children: React.ReactNode }> = ({
       if (docSnap.exists()) {
         const roomData = mapDocToRoom(docSnap.data(), docSnap.id);
 
-        const joinActivity = {
-          id: generateId(),
-          userId: user.id,
-          userName: user.name,
-          userColor: user.color,
-          text: `Joined the room`,
-          timestamp: Timestamp.now(),
-          category: "system",
-        };
-        await updateDoc(roomRef, {
-          activities: arrayUnion(joinActivity),
-        });
+        const shouldLogJoinActivity = !user.lastLoginTimestamp || 
+          (Date.now() - user.lastLoginTimestamp) > LOGIN_COOLDOWN_MS;
+
+        const joinActivity = shouldLogJoinActivity ? {
+            id: generateId(),
+            userId: user.id,
+            userName: user.name,
+            userColor: user.color,
+            text: `Joined the room`,
+            timestamp: Timestamp.now(),
+            category: "system",
+        } : null;
+
+        // Update user with new timestamp
+        const updatedUser = { ...user, lastLoginTimestamp: Date.now() };
+        localStorage.setItem("activityHub_user", JSON.stringify(updatedUser));
+
+        if (joinActivity) {
+          await updateDoc(roomRef, {
+            activities: arrayUnion(joinActivity),
+          });
+        }
 
         setCurrentRoomId(roomId);
 

@@ -4,6 +4,7 @@ type User = {
   id: string;
   name: string;
   color: string;
+  lastLoginTimestamp?: number;
 };
 
 interface UserContextType {
@@ -39,7 +40,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const storedUser = localStorage.getItem("activityHub_user");
     if (storedUser) {
       try {
-        setUserState(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser);
+        // Backward compatibility for existing users
+        const userWithDefaults = addDefaults(parsedUser);
+        setUserState(userWithDefaults);
       } catch (e) {
         console.error("Failed to parse user from localStorage", e);
       }
@@ -47,12 +51,20 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
+  const addDefaults = (userData: Partial<User>): User => {
+    return {
+      id: userData.id || generateId(),
+      name: userData.name || '',
+      color: userData.color || getRandomColor(),
+      lastLoginTimestamp: userData.lastLoginTimestamp || Date.now()
+    };
+  };
+
   const setUser = (userData: User) => {
     const userWithDefaults = {
       ...userData,
-      id: userData.id || generateId(),
-      color: userData.color || getRandomColor(),
-    };
+      ...addDefaults(userData)
+    } as User;
     setUserState(userWithDefaults);
     localStorage.setItem("activityHub_user", JSON.stringify(userWithDefaults));
   };
